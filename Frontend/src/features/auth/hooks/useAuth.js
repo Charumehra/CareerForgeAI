@@ -1,0 +1,70 @@
+import { useContext, useEffect } from "react";
+import { AuthContext } from "../auth.context";
+import { login, register, logout, getProfile } from "../services/auth.api";
+
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  const { user, setUser, Loading, setLoading } = context;
+
+  const handleLogin = async ({ email, password }) => {
+    setLoading(true);
+    try {
+      const data = await login({
+        email: email.trim(),
+        password,
+      });
+      setUser(data.user);
+      return data;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRegister = async ({ username, email, password }) => {
+    setLoading(true);
+    try {
+      const data = await register({
+        username: username.trim(),
+        email: email.trim(),
+        password,
+      });
+      setUser(data.user);
+      return data;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    setLoading(true);
+    try {
+      const data = await logout();
+      setUser(null);
+      return data;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const getAndSetUser = async () => {
+      try {
+        const data = await getProfile();
+        setUser(data.user);
+      } catch (error) {
+        setUser(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+    getAndSetUser();
+  }, []);
+
+  return {
+    user,
+    Loading,
+    handleRegister,
+    handleLogout,
+    handleLogin,
+  };
+};
