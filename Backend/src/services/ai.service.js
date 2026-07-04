@@ -84,17 +84,30 @@ ${jobDescription}
     },
   });
 
-  const report = JSON.parse(response.text);
+  const raw = response.text?.trim();
+
+  const clean = raw
+    .replace(/```json/gi, "")
+    .replace(/```/g, "")
+    .trim();
+
+  const report = JSON.parse(clean);
 
   return report;
 }
 
 async function generatePdfFromHtml(htmlContent) {
+  const isProduction = process.env.NODE_ENV === "production";
+
   const browser = await puppeteer.launch({
-    args: [...chromium.args, "--no-sandbox", "--disable-setuid-sandbox"],
+    headless: true,
+    executablePath: isProduction
+      ? await chromium.executablePath()
+      : "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe", // Windows Chrome
+    args: isProduction
+      ? [...chromium.args, "--no-sandbox", "--disable-setuid-sandbox"]
+      : [],
     defaultViewport: chromium.defaultViewport,
-    executablePath: await chromium.executablePath(),
-    headless: chromium.headless,
   });
 
   try {
@@ -104,10 +117,9 @@ async function generatePdfFromHtml(htmlContent) {
       waitUntil: "networkidle0",
     });
 
-    const pdf = await page.pdf({
+    return await page.pdf({
       format: "A4",
       printBackground: true,
-      preferCSSPageSize: true,
       margin: {
         top: "15mm",
         right: "15mm",
@@ -115,51 +127,390 @@ async function generatePdfFromHtml(htmlContent) {
         left: "15mm",
       },
     });
-
-    return pdf;
   } finally {
     await browser.close();
   }
 }
 
 async function generateResumePdf({ resume, selfDescription, jobDescription }) {
-  const prompt = `
-You are an expert ATS resume writer.
+  //   const prompt = `
+  // You are an expert ATS resume writer.
 
-Your task is to rewrite the candidate's resume specifically for the provided job description.
+  // You must produce a HIGH-QUALITY, ATS-OPTIMIZED HTML resume.
+
+  // ---
+
+  // #  OUTPUT RULES (STRICT)
+
+  // - Return ONLY a complete HTML document.
+  // - Do NOT return JSON.
+  // - Do NOT include explanations or comments.
+  // - Do NOT wrap inside markdown (no \`\`\`).
+  // - Start with <!DOCTYPE html>.
+  // - End with </html>.
+  // - Use ONLY inline CSS inside a single <style> tag.
+  // - Must be clean, single-column, ATS-friendly layout.
+  // - Do NOT use tables, icons, images, charts, or multi-column design.
+
+  // ---
+
+  // #  CONTENT RULES
+
+  // - Do NOT invent experience, companies, degrees, or achievements.
+  // - Improve wording using strong action verbs.
+  // - Quantify achievements ONLY if already implied or provided.
+  // - Add relevant keywords from the job description naturally (ATS optimization).
+  // - Keep content concise, recruiter-friendly, and impact-focused.
+
+  // ---
+
+  // #  LINK HANDLING RULES (VERY IMPORTANT)
+
+  // If any links are present in the input (LinkedIn, GitHub, portfolio, email, website):
+
+  // - Always include them in a dedicated "Contact" or "Header" section.
+  // - Format links clearly and cleanly for ATS parsing.
+
+  // ### Format rules:
+  // - LinkedIn → https://linkedin.com/in/username
+  // - GitHub → https://github.com/username
+  // - Portfolio → https://yourwebsite.com
+  // - Email → mailto:example@gmail.com
+
+  // ### Display rules:
+  // - Show full URLs (DO NOT shorten them)
+  // - Keep them as plain text hyperlinks in HTML (<a href="">)
+  // - Do NOT hide or remove links
+  // - Ensure they are readable and ATS-friendly
+
+  // Example:
+  // <a href="https://linkedin.com/in/example">LinkedIn</a>
+
+  // ---
+
+  // #  STRUCTURE (MANDATORY SECTIONS)
+
+  // Generate resume in this order:
+
+  // 1. Header
+  //    - Name (if available)
+  //    - Email
+  //    - Phone
+  //    - LinkedIn (if available)
+  //    - GitHub (if available)
+  //    - Portfolio (if available)
+
+  // 2. Professional Summary
+  //    - 3–5 strong lines tailored to job description
+
+  // 3. Core Skills
+  //    - Bullet or comma-separated skills optimized for ATS
+
+  // 4. Professional Experience
+  //    - Reverse chronological order
+  //    - Use bullet points with action verbs
+  //    - Focus on impact, tools, technologies
+
+  // 5. Projects
+  //    - Include tech stack
+  //    - Add GitHub/Live links if available
+
+  // 6. Education
+
+  // 7. Certifications (only if provided)
+
+  // ---
+
+  // #  WRITING STYLE
+
+  // - Professional and recruiter-focused
+  // - Strong action verbs (Built, Developed, Led, Optimized, Designed)
+  // - ATS keyword-rich but natural
+  // - No fluff or generic statements
+  // - Clear, scannable formatting
+
+  // ---
+
+  // Candidate Resume:
+  // ${resume}
+
+  // Candidate Self Description:
+  // ${selfDescription}
+
+  // Target Job Description:
+  // ${jobDescription}
+  // `;
+  const prompt = `
+You are a senior resume writer, ATS optimization specialist, and technical recruiter with years of experience reviewing resumes for top technology companies.
+
+Your goal is to transform the candidate's information into a professional, natural, ATS-friendly resume that looks like it was written by an experienced human resume writer—not by AI.
+
+========================
+OUTPUT REQUIREMENTS
+========================
 
 Return ONLY a complete HTML document.
 
-STRICT RULES:
+Do NOT:
+- Return JSON.
+- Wrap the response inside markdown.
+- Add explanations.
+- Add comments.
+- Add placeholders that were not provided.
+- Invent companies, projects, dates, achievements, certifications, or experience.
 
-- Return ONLY HTML.
-- Do NOT return JSON.
-- Do NOT wrap inside markdown.
-- Start with <!DOCTYPE html>.
-- End with </html>.
-- Use only inline CSS inside one <style> tag.
-- Use a clean single-column ATS-friendly layout.
-- Do NOT use icons, tables, images, columns or graphics.
-- Use professional spacing.
-- Use Arial, Helvetica or Calibri.
-- Make it recruiter-friendly.
-- Optimize the resume for ATS.
-- Add relevant keywords from the job description naturally.
-- Never invent experience.
-- Improve wording.
-- Rewrite bullets with action verbs.
-- Quantify achievements only if supported.
-- Keep the resume concise.
+The response MUST:
+- Start with <!DOCTYPE html>
+- End with </html>
+- Contain only one <style> tag
+- Use semantic HTML
+- Be ready for PDF generation without modification
 
-Sections:
+========================
+DESIGN REQUIREMENTS
+========================
 
-Header
-Professional Summary
-Core Skills
-Professional Experience
-Projects
-Education
-Certifications (if available)
+The resume must be:
+
+- ATS friendly
+- Professional
+- Clean
+- Elegant
+- Minimal
+- Easy to scan
+- Recruiter friendly
+
+Use:
+
+- Arial, Helvetica or Calibri
+- White background
+- Black/Dark Gray text
+- Single-column layout
+- Consistent spacing
+- Proper margins (approximately 15–15mm)
+- Professional typography
+- Balanced whitespace
+- Clear visual hierarchy
+
+Do NOT use:
+
+- Tables
+- Icons
+- Images
+- Graphics
+- Progress bars
+- Ratings
+- Columns
+- Background colors
+- Fancy designs
+
+Use subtle section separators and clean headings.
+
+========================
+CONTENT REQUIREMENTS
+========================
+
+Rewrite every section professionally.
+
+Do not simply copy the original wording.
+
+Instead:
+
+- Improve grammar.
+- Improve readability.
+- Remove repetition.
+- Use concise language.
+- Use strong action verbs.
+- Make every bullet impactful.
+- Keep the writing natural.
+- Make it sound like an experienced professional wrote it.
+
+Avoid generic AI phrases such as:
+
+- Passionate professional
+- Highly motivated individual
+- Hardworking person
+- Dynamic team player
+- Results-oriented professional
+
+Instead, write naturally and specifically.
+
+========================
+ATS OPTIMIZATION
+========================
+
+Carefully analyze the job description.
+
+Naturally incorporate relevant keywords into:
+
+- Professional Summary
+- Skills
+- Experience
+- Projects
+
+Do NOT keyword stuff.
+
+Keywords should appear naturally.
+
+========================
+LINK HANDLING
+========================
+
+If the candidate provides:
+
+- LinkedIn
+- GitHub
+- Portfolio
+- Personal Website
+- Email
+
+Display them clearly in the header.
+
+Use proper HTML links.
+
+Example:
+
+<a href="https://linkedin.com/in/username">
+linkedin.com/in/username
+</a>
+
+Display the complete URL.
+
+Never hide, shorten, or remove links.
+
+If project links exist, include them directly beneath the project title.
+
+========================
+PROJECTS
+========================
+
+For every project:
+
+Include:
+
+Project Name
+
+Technologies Used
+
+3–5 concise bullet points describing:
+
+- what was built
+- technologies used
+- key features
+- measurable impact (only if provided)
+
+If GitHub or Live Demo links are available, display them.
+
+========================
+EXPERIENCE
+========================
+
+Write professional accomplishment-oriented bullet points.
+
+Use action verbs like:
+
+Built
+Designed
+Developed
+Implemented
+Optimized
+Integrated
+Automated
+Collaborated
+Improved
+Created
+
+Never exaggerate or invent achievements.
+
+========================
+PROFESSIONAL SUMMARY
+========================
+
+Write a concise summary (3–5 lines).
+
+It should:
+
+- Match the target role
+- Highlight relevant strengths
+- Mention important technologies
+- Sound natural
+- Avoid clichés
+
+========================
+SKILLS
+========================
+
+Group skills logically.
+
+Example:
+
+Languages
+
+Frontend
+
+Backend
+
+Databases
+
+Frameworks
+
+Tools
+
+Cloud
+
+Version Control
+
+========================
+SECTION ORDER
+========================
+
+1. Header
+
+- Name
+- Job Title (if applicable)
+- Phone
+- Email
+- LinkedIn
+- GitHub
+- Portfolio
+
+2. Professional Summary
+
+3. Technical Skills
+
+4. Professional Experience
+
+5. Projects
+
+6. Education
+
+7. Certifications (if available)
+
+========================
+FINAL QUALITY CHECK
+========================
+
+Before returning HTML ensure:
+
+✓ ATS compatible
+
+✓ Human-written tone
+
+✓ Professional spacing
+
+✓ Proper margins
+
+✓ Consistent typography
+
+✓ No unnecessary empty space
+
+✓ No fake information
+
+✓ No duplicated content
+
+✓ Clean HTML
+
+✓ Print-ready PDF layout
 
 Candidate Resume:
 ${resume}
@@ -170,7 +521,6 @@ ${selfDescription}
 Target Job Description:
 ${jobDescription}
 `;
-
   let response;
   let html;
 
@@ -184,8 +534,6 @@ ${jobDescription}
       },
     });
 
-    console.log("========== GEMINI RAW RESPONSE ==========");
-    console.log(response.text);
 
     html = response.text?.trim();
 
@@ -199,15 +547,9 @@ ${jobDescription}
       throw new Error("Gemini did not return a valid HTML document.");
     }
 
-    console.log("✅ AI Resume HTML Generated");
   } catch (error) {
-    console.error("========== RESUME AI ERROR ==========");
-    console.error(error);
 
-    if (response?.text) {
-      console.log("Gemini Response:");
-      console.log(response.text);
-    }
+    
 
     html = buildFallbackResumeHtml({
       resume,
@@ -217,16 +559,12 @@ ${jobDescription}
   }
 
   try {
-    console.log("Generating PDF...");
 
     const pdfBuffer = await generatePdfFromHtml(html);
 
-    console.log("✅ Resume PDF Generated");
 
     return pdfBuffer;
   } catch (error) {
-    console.error("========== PUPPETEER ERROR ==========");
-    console.error(error);
 
     return await buildFallbackResumePdf({
       resume,
