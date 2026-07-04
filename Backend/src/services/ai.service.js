@@ -1,5 +1,6 @@
 const { GoogleGenAI } = require("@google/genai");
-const puppeteer = require("puppeteer");
+const puppeteer = require("puppeteer-core");
+const chromium = require("@sparticuz/chromium");
 const PDFDocument = require("pdfkit");
 
 const ai = new GoogleGenAI({
@@ -89,19 +90,11 @@ ${jobDescription}
 }
 
 async function generatePdfFromHtml(htmlContent) {
-  const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH
-    ? process.env.PUPPETEER_EXECUTABLE_PATH
-    : await puppeteer.executablePath();
-
   const browser = await puppeteer.launch({
-    headless: true,
-    executablePath,
-    args: [
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--disable-dev-shm-usage",
-      "--disable-gpu",
-    ],
+    args: [...chromium.args, "--no-sandbox", "--disable-setuid-sandbox"],
+    defaultViewport: chromium.defaultViewport,
+    executablePath: await chromium.executablePath(),
+    headless: chromium.headless,
   });
 
   try {
@@ -111,7 +104,7 @@ async function generatePdfFromHtml(htmlContent) {
       waitUntil: "networkidle0",
     });
 
-    return await page.pdf({
+    const pdf = await page.pdf({
       format: "A4",
       printBackground: true,
       preferCSSPageSize: true,
@@ -122,6 +115,8 @@ async function generatePdfFromHtml(htmlContent) {
         left: "15mm",
       },
     });
+
+    return pdf;
   } finally {
     await browser.close();
   }
