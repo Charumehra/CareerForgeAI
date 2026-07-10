@@ -1,4 +1,4 @@
-# 🚀 CareerForge
+#  CareerForge
 
 > An AI-powered career development platform that helps users create professional resumes, generate interview reports, and prepare for technical interviews.
 
@@ -54,7 +54,7 @@ CareerForge is a full-stack MERN application designed to simplify career prepara
 
 ---
 
-# 🛠️ Tech Stack
+#  Tech Stack
 
 ## Frontend
 - React.js
@@ -161,7 +161,7 @@ DELETE /api/interview/report/:id
 ```
 
 
-# 🚀 Future Improvements
+#  Future Improvements
 
 - Multiple Resume Templates
 - Cover Letter Generator
@@ -175,7 +175,7 @@ DELETE /api/interview/report/:id
 
 ---
 
-# 👩‍💻 Author
+#  Author
 
 **Charu Mehra**
 
